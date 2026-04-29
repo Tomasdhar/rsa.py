@@ -9,7 +9,7 @@ spacy.load('en_core_web_sm')
 import pandas as pd
 import base64, random
 import time, datetime
-from pyresparser import ResumeParser
+#from pyresparser import ResumeParser
 from pdfminer3.layout import LAParams, LTTextBox
 from pdfminer3.pdfpage import PDFPage
 from pdfminer3.pdfinterp import PDFResourceManager
@@ -182,7 +182,13 @@ def run():
             with open(save_image_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
             show_pdf(save_image_path)
-            resume_data = ResumeParser(save_image_path).get_extracted_data()
+            resume_data = {
+                "name": "User",
+                "email": "Not Found",
+                "mobile_number": "Not Found",
+                "no_of_pages": 1,
+                "skills": []
+            }
             if resume_data:
                 ## Get the whole resume data
                 resume_text = pdf_reader(save_image_path)
