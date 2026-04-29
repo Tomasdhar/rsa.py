@@ -140,7 +140,17 @@ def run():
     choice = st.sidebar.selectbox("Choose among the given options:", activities)
     # link = '[©Developed by Spidy20](http://github.com/spidy20)'
     # st.sidebar.markdown(link, unsafe_allow_html=True)
-    img = Image.open('./Logo/SRA_Logo.jpg')
+    import os
+    from PIL import Image
+
+    logo_path = os.path.join("Logo", "SRA_Logo.jpg")
+
+    if os.path.exists(logo_path):
+        img = Image.open(logo_path)
+        img = img.resize((250, 250))
+        st.image(img)
+    else:
+        st.warning("Logo image not found")
     img = img.resize((250, 250))
     st.image(img)
 
