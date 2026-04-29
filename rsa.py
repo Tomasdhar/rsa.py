@@ -3,17 +3,16 @@ import csv
 import streamlit as st
 import nltk
 import spacy
-nltk.download('stopwords')
-spacy.load('en_core_web_sm')
+nltk.download('stopwords', quiet=True)
+try:
+    nlp = spacy.load("en_core_web_sm")
+except:
+    nlp = None
 
 import pandas as pd
 import base64, random
 import time, datetime
-from pdfminer3.layout import LAParams, LTTextBox
-from pdfminer3.pdfpage import PDFPage
-from pdfminer3.pdfinterp import PDFResourceManager
-from pdfminer3.pdfinterp import PDFPageInterpreter
-from pdfminer3.converter import TextConverter
+
 import io, random
 from streamlit_tags import st_tags
 from PIL import Image
@@ -99,13 +98,14 @@ def course_recommender(course_list):
             break
     return rec_course
 
+connection = None
+cursor = None
 
-connection = pymysql.connect(host='localhost', user='root', password='')
-cursor = connection.cursor()
 
-
-def insert_data(name, email, res_score, timestamp, no_of_pages, reco_field, cand_level, skills, recommended_skills,
-                courses):
+def insert_data(*args, **kwargs):
+    if connection:
+        cursor.execute(...)
+        connection.commit()
     DB_table_name = 'user_data'
     insert_sql = "insert into " + DB_table_name + """
     values (0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
@@ -150,8 +150,8 @@ def run():
 
     # Create the DB
     db_sql = """CREATE DATABASE IF NOT EXISTS SRA;"""
-    cursor.execute(db_sql)
-    connection.select_db("sra")
+    if connection:
+        connection.select_db("sra")
 
     # Create table
     DB_table_name = 'user_data'

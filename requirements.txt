@@ -1,10 +1,10 @@
 streamlit
 pandas
 nltk
-spacy
-pdfminer3
-pyresparser
+spacy==3.5.0
+pdfminer.six
 streamlit-tags
 pillow
 yt-dlp
 plotly
+pymysql
