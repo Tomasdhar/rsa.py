@@ -2,12 +2,8 @@ import os
 import csv
 import streamlit as st
 import nltk
-import spacy
 nltk.download('stopwords', quiet=True)
-try:
-    nlp = spacy.load("en_core_web_sm")
-except:
-    nlp = None
+nlp = None
 
 import pandas as pd
 import base64, random
