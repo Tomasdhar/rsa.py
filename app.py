@@ -142,7 +142,7 @@ def run():
     # st.sidebar.markdown(link, unsafe_allow_html=True)
     import os
     from PIL import Image
-
+    import streamlit as st
     logo_path = os.path.join("Logo", "SRA_Logo.jpg")
 
     if os.path.exists(logo_path):
@@ -151,8 +151,7 @@ def run():
         st.image(img)
     else:
         st.warning("Logo image not found")
-    img = img.resize((250, 250))
-    st.image(img)
+
 
     # Create the DB
     db_sql = """CREATE DATABASE IF NOT EXISTS SRA;"""
