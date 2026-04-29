@@ -1,0 +1,10 @@
+streamlit
+pandas
+nltk
+spacy
+pdfminer3
+pyresparser
+streamlit-tags
+pillow
+yt-dlp
+plotly

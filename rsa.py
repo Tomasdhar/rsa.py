@@ -22,7 +22,7 @@ import pymysql
 from Courses import ds_course, web_course, android_course, ios_course, uiux_course, resume_videos, interview_videos
 import yt_dlp
 import plotly.express as px
-import youtube_dl
+
 
 def load_academic_dataset():
     if os.path.exists("resume_dataset.csv"):
@@ -121,7 +121,22 @@ st.set_page_config(
     page_title="Smart Resume Analyzer",
     page_icon='./Logo/SRA_Logo.ico',
 )
+def save_to_csv(name, email, skills, pages, level, field):
+    file_exists = os.path.exists("resume_dataset.csv")
 
+    if isinstance(skills, list):
+        skills = "|".join(skills)
+
+    with open("resume_dataset.csv", "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow([
+                "name", "email", "skills",
+                "no_of_pages", "experience_level", "job_field"
+            ])
+        writer.writerow([
+            name, email, skills, pages, level, field
+        ])
 
 def run():
     st.title("Smart Resume Analyser")
@@ -247,21 +262,30 @@ def run():
                 recommended_skills = []
                 reco_field = ''
                 rec_course = ''
+                 
                 ## Courses recommendation
-                for i in resume_data['skills']:
+                skills_list = resume_data.get('skills', []) or []
+
+                for i in skills_list:
                     ## Data science recommendation
                     if i.lower() in ds_keyword:
                         print(i.lower())
                         reco_field = 'Data Science'
                         st.success("** Our analysis says you are looking for Data Science Jobs.**")
-                        recommended_skills = ['Data Visualization', 'Predictive Analysis', 'Statistical Modeling',
-                                              'Data Mining', 'Clustering & Classification', 'Data Analytics',
-                                              'Quantitative Analysis', 'Web Scraping', 'ML Algorithms', 'Keras',
-                                              'Pytorch', 'Probability', 'Scikit-learn', 'Tensorflow', "Flask",
-                                              'Streamlit']
-                        recommended_keywords = st_tags(label='### Recommended skills for you.',
-                                                       text='Recommended skills generated from System',
-                                                       value=recommended_skills, key='2')
+                        recommended_skills = [
+                            'Data Visualization', 'Predictive Analysis', 'Statistical Modeling',
+                            'Data Mining', 'Clustering & Classification', 'Data Analytics',
+                            'Quantitative Analysis', 'Web Scraping', 'ML Algorithms', 'Keras',
+                            'Pytorch', 'Probability', 'Scikit-learn', 'Tensorflow', 'Flask',
+                            'Streamlit'
+                        ]
+
+                        recommended_keywords = st_tags(
+                            label='### Recommended skills for you.',
+                            text='Recommended skills generated from System',
+                            value=recommended_skills,
+                            key='2'
+                        )
                         st.markdown(
                             '''<h4 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job💼</h4>''',
                             unsafe_allow_html=True)
@@ -403,39 +427,10 @@ def run():
                             str(resume_data['no_of_pages']), reco_field, cand_level, str(resume_data['skills']),
                             str(recommended_skills), str(rec_course))
 
-                def save_to_csv(name, email, skills, pages, level, field):
-                    file_exists = os.path.exists("resume_dataset.csv")
 
-                    with open("resume_dataset.csv", "a", newline="", encoding="utf-8") as f:
-                        writer = csv.writer(f)
-                        if not file_exists:
-                            writer.writerow([
-                                "name", "email", "skills",
-                                "no_of_pages", "experience_level", "job_field"
-                            ])
 
-                        def save_to_csv(name, email, skills, pages, level, field):
-                            file_exists = os.path.exists("resume_dataset.csv")
 
-                            # Convert list → safe string
-                            if isinstance(skills, list):
-                                skills = "|".join(skills)
 
-                            with open("resume_dataset.csv", "a", newline="", encoding="utf-8") as f:
-                                writer = csv.writer(f)
-                                if not file_exists:
-                                    writer.writerow([
-                                        "name", "email", "skills",
-                                        "no_of_pages", "experience_level", "job_field"
-                                    ])
-                                writer.writerow([
-                                    name,
-                                    email,
-                                    skills,
-                                    pages,
-                                    level,
-                                    field
-                                ])
 
                 save_to_csv(
                     resume_data['name'],
@@ -491,6 +486,13 @@ def run():
                                                  'Recommended Course'])
                 st.dataframe(df)
                 st.markdown(get_table_download_link(df, 'User_Data.csv', 'Download Report'), unsafe_allow_html=True)
+                st.subheader("📈 Predicted Field Distribution")
+                fig = px.pie(df, names="job_field")
+                st.plotly_chart(fig)
+
+                st.subheader("📈 Experience Level Distribution")
+                fig2 = px.pie(df, names="experience_level")
+                st.plotly_chart(fig2)
                 ## Admin Side Data
                 query = 'select * from user_data;'
                 plot_data = pd.read_sql(query, connection)
