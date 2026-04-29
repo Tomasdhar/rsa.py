@@ -94,8 +94,12 @@ def course_recommender(course_list):
             break
     return rec_course
 
-connection = None
-cursor = None
+try:
+    connection = pymysql.connect(...)
+    cursor = connection.cursor()
+except:
+    connection = None
+    cursor = None
 
 
 def insert_data(*args, **kwargs):
@@ -134,6 +138,11 @@ def save_to_csv(name, email, skills, pages, level, field):
         ])
 
 def run():
+    img = None
+    reco_field = ""
+    cand_level = ""
+    rec_course = []
+    recommended_skills = []
     st.title("Smart Resume Analyser")
     st.sidebar.markdown("# Choose User")
     activities = ["Normal User", "Admin"]
