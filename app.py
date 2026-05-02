@@ -304,17 +304,16 @@ def run():
 
                 st.subheader("**Skills Recommendation💡**")
 
+                st.write("### 🛠 Detected Skills:")
 
                 if resume_data['skills']:
-                    st.write("### 🛠 Detected Skills:")
-
                     for skill in resume_data['skills']:
                         st.success(skill)
                     st_tags(
                         label='### Skills that you have',
                         text='Detected from your resume',
                         value=resume_data['skills'],
-                        key='skills'
+                        key=f"skills_{pdf_file.name}"
                     )
                 else:
                     st.warning("No skills detected in your resume")
