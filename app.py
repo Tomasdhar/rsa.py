@@ -267,15 +267,9 @@ def run():
             for keys, mark in sections.items():
                 if any(k in resume_text for k in keys):
                     resume_score += mark
-                    st.markdown(
-                        f"<h4 style='color:#1ed760;'>[+] {keys[0].title()} section found (+{mark})</h4>",
-                        unsafe_allow_html=True
-                    )
+                    st.success(f"{keys[0].title()} section found (+{mark})")
                 else:
-                    st.markdown(
-                        f"<h4 style='color:#fabc10;'>[-] Consider adding {keys[0].title()} section</h4>",
-                        unsafe_allow_html=True
-                    )
+                    st.warning(f"Consider adding {keys[0].title()} section")
 
                 # Maximum score cap
                 if resume_score > 100:
@@ -283,14 +277,12 @@ def run():
 
                 st.header("**Resume Analysis**")
                 st.success("Hello " + resume_data['name'])
+
                 st.subheader("**Your Basic info**")
-                try:
-                    st.text('Name: ' + resume_data['name'])
-                    st.text('Email: ' + resume_data['email'])
-                    st.text('Contact: ' + resume_data['mobile_number'])
-                    st.text('Resume pages: ' + str(resume_data['no_of_pages']))
-                except:
-                    pass
+                st.text('Name: ' + resume_data['name'])
+                st.text('Email: ' + resume_data['email'])
+                st.text('Contact: ' + resume_data['mobile_number'])
+                st.text('Resume pages: ' + str(resume_data['no_of_pages']))
                 cand_level = ''
                 if resume_data['no_of_pages'] == 1:
                     cand_level = "Fresher"
@@ -303,17 +295,19 @@ def run():
                     st.info("You are at experienced level!")
 
                 st.subheader("**Skills Recommendation💡**")
+                if "skills_shown" not in st.session_state:
+                    st.session_state.skills_shown = True
 
-                st.write("### 🛠 Detected Skills:")
+                    st.write("### 🛠 Detected Skills:")
 
-                if resume_data['skills']:
+
                     for skill in resume_data['skills']:
                         st.success(skill)
                     st_tags(
                         label='### Skills that you have',
                         text='Detected from resume',
                         value=resume_data['skills'],
-                        key=f"skills_{pdf_file.name}"
+                        key="skills_unique"
                     )
                 else:
                     st.warning("No skills detected in your resume")
@@ -351,12 +345,7 @@ def run():
                             'Streamlit'
                         ]
 
-                        recommended_keywords = st_tags(
-                            label='### Recommended skills for you.',
-                            text='Recommended skills generated from System',
-                            value=recommended_skills,
-                            key='2'
-                        )
+
                         st.markdown(
                             '''<h4 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job💼</h4>''',
                             unsafe_allow_html=True)

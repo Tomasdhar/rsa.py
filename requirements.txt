@@ -1,8 +1,9 @@
 streamlit
 pandas
+numpy
 pdfminer.six
-nltk
-Pillow
 streamlit-tags
-yt-dlp
 plotly
+nltk
+yt-dlp
+Pillow
