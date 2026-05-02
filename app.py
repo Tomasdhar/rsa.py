@@ -311,7 +311,7 @@ def run():
                         st.success(skill)
                     st_tags(
                         label='### Skills that you have',
-                        text='Detected from your resume',
+                        text='Detected from resume',
                         value=resume_data['skills'],
                         key=f"skills_{pdf_file.name}"
                     )
@@ -507,15 +507,14 @@ def run():
                 ## Resume writing video
                 st.header("**Bonus Video for Resume Writing Tips💡**")
                 resume_vid = random.choice(resume_videos)
-                res_vid_title = fetch_yt_video(resume_vid)
-                st.subheader("✅ **" + res_vid_title + "**")
+                res_vid_title = "Resume Writing Tips Video"
+                st.subheader("✅ " + res_vid_title)
                 st.video(resume_vid)
-
                 ## Interview Preparation Video
                 st.header("**Bonus Video for Interview👨‍💼 Tips💡**")
                 interview_vid = random.choice(interview_videos)
-                int_vid_title = fetch_yt_video(interview_vid)
-                st.subheader("✅ **" + int_vid_title + "**")
+                int_vid_title = "Interview Preparation Video"
+                st.subheader("✅ " + int_vid_title)
                 st.video(interview_vid)
 
                 connection.commit()
