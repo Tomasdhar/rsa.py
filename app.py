@@ -2,21 +2,28 @@ import os
 import csv
 import streamlit as st
 import nltk
+import re
 nltk.download('stopwords', quiet=True)
 nlp = None
 
 import pandas as pd
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+from pdfminer.converter import TextConverter
+from pdfminer.pdfpage import PDFPage
+from pdfminer.layout import LAParams
 import base64, random
 import time, datetime
 
 import io, random
 from streamlit_tags import st_tags
 from PIL import Image
-import pymysql
 from Courses import ds_course, web_course, android_course, ios_course, uiux_course, resume_videos, interview_videos
 import yt_dlp
 import plotly.express as px
-
+# SQLite connection
+import sqlite3
+connection = sqlite3.connect("resume.db", check_same_thread=False)
+cursor = connection.cursor()
 
 def load_academic_dataset():
     if os.path.exists("resume_dataset.csv"):
@@ -76,7 +83,15 @@ def show_pdf(file_path):
     with open(file_path, "rb") as f:
         base64_pdf = base64.b64encode(f.read()).decode('utf-8')
     # pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf">'
-    pdf_display = F'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
+    pdf_display = f"""
+    <iframe 
+        src="data:application/pdf;base64,{base64_pdf}"
+        width="700" 
+        height="900" 
+        type="application/pdf">
+    </iframe>
+    """
+
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
@@ -92,28 +107,34 @@ def course_recommender(course_list):
         rec_course.append(c_name)
         if c == no_of_reco:
             break
-    return rec_course
 
-try:
-    connection = pymysql.connect(...)
-    cursor = connection.cursor()
-except:
     connection = None
     cursor = None
 
 
-def insert_data(*args, **kwargs):
-    if connection:
-        cursor.execute(...)
-        connection.commit()
-    DB_table_name = 'user_data'
-    insert_sql = "insert into " + DB_table_name + """
-    values (0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+def insert_data(name, email, res_score, timestamp,
+                no_of_pages, reco_field, cand_level,
+                skills, recommended_skills, courses):
+
+    insert_sql = """
+    INSERT INTO user_data
+    (Name, Email_ID, resume_score, Timestamp, Page_no,
+     Predicted_Field, User_level, Actual_skills,
+     Recommended_skills, Recommended_courses)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
     rec_values = (
-    name, email, str(res_score), timestamp, str(no_of_pages), reco_field, cand_level, skills, recommended_skills,
-    courses)
+        name, email, res_score, timestamp,
+        no_of_pages, reco_field, cand_level,
+        skills, recommended_skills, courses
+    )
+
     cursor.execute(insert_sql, rec_values)
     connection.commit()
+
+
+
 
 
 st.set_page_config(
@@ -138,12 +159,14 @@ def save_to_csv(name, email, skills, pages, level, field):
         ])
 
 def run():
-    img = None
+
+    st.title("Smart Resume Analyser")
     reco_field = ""
     cand_level = ""
     rec_course = []
     recommended_skills = []
-    st.title("Smart Resume Analyser")
+
+
     st.sidebar.markdown("# Choose User")
     activities = ["Normal User", "Admin"]
     choice = st.sidebar.selectbox("Choose among the given options:", activities)
@@ -151,7 +174,6 @@ def run():
     # st.sidebar.markdown(link, unsafe_allow_html=True)
     import os
     from PIL import Image
-    import streamlit as st
     logo_path = os.path.join("Logo", "SRA_Logo.jpg")
 
     if os.path.exists(logo_path):
@@ -162,74 +184,98 @@ def run():
         st.warning("Logo image not found")
 
 
-    # Create the DB
-    db_sql = """CREATE DATABASE IF NOT EXISTS SRA;"""
-    if connection:
-        connection.select_db("sra")
+
 
     # Create table
-    DB_table_name = 'user_data'
-    table_sql = "CREATE TABLE IF NOT EXISTS " + DB_table_name + """
-                    (ID INT NOT NULL AUTO_INCREMENT,
-                     Name varchar(100) NOT NULL,
-                     Email_ID VARCHAR(50) NOT NULL,
-                     resume_score VARCHAR(8) NOT NULL,
-                     Timestamp VARCHAR(50) NOT NULL,
-                     Page_no VARCHAR(5) NOT NULL,
-                     Predicted_Field VARCHAR(25) NOT NULL,
-                     User_level VARCHAR(30) NOT NULL,
-                     Actual_skills VARCHAR(300) NOT NULL,
-                     Recommended_skills VARCHAR(300) NOT NULL,
-                     Recommended_courses VARCHAR(600) NOT NULL,
-                     PRIMARY KEY (ID));
-                    """
-    cursor.execute(table_sql)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_data (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Name TEXT,
+        Email_ID TEXT,
+        resume_score TEXT,
+        Timestamp TEXT,
+        Page_no TEXT,
+        Predicted_Field TEXT,
+        User_level TEXT,
+        Actual_skills TEXT,
+        Recommended_skills TEXT,
+        Recommended_courses TEXT
+    )
+    """)
+    connection.commit()
     if choice == 'Normal User':
         # st.markdown('''<h4 style='text-align: left; color: #d73b5c;'>* Upload your resume, and get smart recommendation based on it."</h4>''',
         #             unsafe_allow_html=True)
         pdf_file = st.file_uploader("Choose your Resume", type=["pdf"])
         if pdf_file is not None:
-            # with st.spinner('Uploading your Resume....'):
-            #     time.sleep(4)
+
             save_image_path = './Uploaded_Resumes/' + pdf_file.name
+
             with open(save_image_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
+            st.subheader("📄 Uploaded Resume Preview")
             show_pdf(save_image_path)
+            # ✅ Extract text
+            resume_text = pdf_reader(save_image_path)
+
+
+            # ✅ Extract email
+            email = re.findall(r'\S+@\S+', resume_text)
+            email = email[0] if email else "Not Found"
+
+            # ✅ Extract phone
+            phone = re.findall(r'\b\d{10}\b', resume_text)
+            phone = phone[0] if phone else "Not Found"
+
+            # ✅ Extract name (simple method)
+            name = resume_text.split('\n')[0]
+
+
+            # ✅ Skills (basic extraction)
+            skills = list(set(re.findall(
+                r'\b(python|java|sql|react|django|flask|machine learning|ai|html|css|javascript)\b',
+                resume_text.lower()
+            )))
+            # Page count (simple OR use function)
+            no_of_pages = 1
+
             resume_data = {
-                "name": "User",
-                "email": "Not Found",
-                "mobile_number": "Not Found",
-                "no_of_pages": 1,
-                "skills": []
+                "name": name,
+                "email": email,
+                "mobile_number": phone,
+                "no_of_pages": no_of_pages,
+                "skills": skills
             }
-            if resume_data:
-                ## Get the whole resume data
-                resume_text = pdf_reader(save_image_path)
-                resume_score = 0
-                resume_text = resume_text.lower()
 
-                sections = {
-                    ('objective', 'career objective'): 10,
-                    ('education', 'educational'): 15,
-                    ('experience', 'work experience'): 20,
-                    ('skills', 'technical skills'): 20,
-                    ('projects', 'academic projects'): 15,
-                    ('certification', 'certifications'): 10,
-                    ('achievement', 'achievements'): 10
-                }
+            resume_text = resume_text.lower()
+            resume_score = 0
+            resume_data["skills"] = re.findall(
+         r'\b(?:python|java|sql|react|django|flask|ml|ai)\b',
+                resume_text
+            )
 
-                for keys, mark in sections.items():
-                    if any(k in resume_text for k in keys):
-                        resume_score += mark
-                        st.markdown(
-                            f"<h4 style='color:#1ed760;'>[+] {keys[0].title()} section found (+{mark})</h4>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            f"<h4 style='color:#fabc10;'>[-] Consider adding {keys[0].title()} section</h4>",
-                            unsafe_allow_html=True
-                        )
+            sections = {
+                ('objective', 'career objective'): 10,
+                ('education', 'educational'): 15,
+                ('experience', 'work experience'): 20,
+                ('skills', 'technical skills'): 20,
+                ('projects', 'academic projects'): 15,
+                ('certification', 'certifications'): 10,
+                ('achievement', 'achievements'): 10
+            }
+
+            for keys, mark in sections.items():
+                if any(k in resume_text for k in keys):
+                    resume_score += mark
+                    st.markdown(
+                        f"<h4 style='color:#1ed760;'>[+] {keys[0].title()} section found (+{mark})</h4>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f"<h4 style='color:#fabc10;'>[-] Consider adding {keys[0].title()} section</h4>",
+                        unsafe_allow_html=True
+                    )
 
                 # Maximum score cap
                 if resume_score > 100:
@@ -248,23 +294,30 @@ def run():
                 cand_level = ''
                 if resume_data['no_of_pages'] == 1:
                     cand_level = "Fresher"
-                    st.markdown('''<h4 style='text-align: left; color: #d73b5c;'>You are looking Fresher.</h4>''',
-                                unsafe_allow_html=True)
+                    st.warning("You are looking Fresher.")
                 elif resume_data['no_of_pages'] == 2:
                     cand_level = "Intermediate"
-                    st.markdown('''<h4 style='text-align: left; color: #1ed760;'>You are at intermediate level!</h4>''',
-                                unsafe_allow_html=True)
-                elif resume_data['no_of_pages'] >= 3:
+                    st.success("You are at intermediate level!")
+                else:
                     cand_level = "Experienced"
-                    st.markdown('''<h4 style='text-align: left; color: #fba171;'>You are at experience level!''',
-                                unsafe_allow_html=True)
+                    st.info("You are at experienced level!")
 
                 st.subheader("**Skills Recommendation💡**")
-                ## Skill shows
-                keywords = st_tags(label='### Skills that you have',
-                                   text='See our skills recommendation',
-                                   value=resume_data['skills'], key='1')
 
+
+                if resume_data['skills']:
+                    st.write("### 🛠 Detected Skills:")
+
+                    for skill in resume_data['skills']:
+                        st.success(skill)
+                    st_tags(
+                        label='### Skills that you have',
+                        text='Detected from your resume',
+                        value=resume_data['skills'],
+                        key='skills'
+                    )
+                else:
+                    st.warning("No skills detected in your resume")
                 ##  recommendation
                 ds_keyword = ['tensorflow', 'keras', 'pytorch', 'machine learning', 'deep Learning', 'flask',
                               'streamlit']
@@ -281,7 +334,7 @@ def run():
                 recommended_skills = []
                 reco_field = ''
                 rec_course = ''
-                 
+
                 ## Courses recommendation
                 skills_list = resume_data.get('skills', []) or []
 
@@ -388,7 +441,14 @@ def run():
                 ### Resume writing recommendation
 
 
-                resume_text = pdf_reader(save_image_path)
+
+                from pdfminer.pdfpage import PDFPage
+
+                def get_pdf_page_count(file_path):
+                    with open(file_path, "rb") as f:
+                        return len(list(PDFPage.get_pages(f)))
+
+                resume_data["no_of_pages"] = get_pdf_page_count(save_image_path)
                 resume_text = resume_text.lower()
                 resume_score = 0
 
@@ -407,36 +467,22 @@ def run():
                 for keys, mark in sections.items():
                     if any(k in resume_text for k in keys):
                         resume_score += mark
-                        st.markdown(
-                            f"<h4 style='color:#1ed760;'>[+] {keys[0].title()} section found (+{mark})</h4>",
-                            unsafe_allow_html=True
-                        )
+                        st.success(f"{keys[0].title()} section found (+{mark})")
                     else:
-                        st.markdown(
-                            f"<h4 style='color:#fabc10;'>[-] Consider adding {keys[0].title()} section</h4>",
-                            unsafe_allow_html=True
-                        )
+                        st.warning(f"Consider adding {keys[0].title()} section")
 
                 if resume_score > 100:
                     resume_score = 100
 
                 st.subheader("**Resume Score📝**")
-                st.markdown(
-                    """
-                    <style>
-                        .stProgress > div > div > div > div {
-                            background-color: #d73b5c;
-                        }
-                    </style>""",
-                    unsafe_allow_html=True,
-                )
                 my_bar = st.progress(0)
+
                 score = 0
-                for percent_complete in range(resume_score):
+                for i in range(resume_score):
                     score += 1
-                    time.sleep(0.1)
-                    my_bar.progress(percent_complete + 1)
-                st.success('** Your Resume Writing Score: ' + str(score) + '**')
+                    time.sleep(0.01)
+                    my_bar.progress(i + 1)
+                st.success('** Your Resume Writing Score: ' + str(resume_score) + '**')
                 st.warning(
                     "** Note: This score is calculated based on the content that you have added in your Resume. **"
                 )
@@ -506,11 +552,11 @@ def run():
                 st.dataframe(df)
                 st.markdown(get_table_download_link(df, 'User_Data.csv', 'Download Report'), unsafe_allow_html=True)
                 st.subheader("📈 Predicted Field Distribution")
-                fig = px.pie(df, names="job_field")
+                fig = px.pie(df, names="Predicted Field")
                 st.plotly_chart(fig)
 
                 st.subheader("📈 Experience Level Distribution")
-                fig2 = px.pie(df, names="experience_level")
+                fig2 = px.pie(df, names="User Level")
                 st.plotly_chart(fig2)
                 ## Admin Side Data
                 query = 'select * from user_data;'
