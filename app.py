@@ -3,6 +3,9 @@ import csv
 import streamlit as st
 import nltk
 import re
+import logging
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
+
 nltk.download('stopwords', quiet=True)
 nlp = None
 
@@ -16,14 +19,15 @@ import time, datetime
 
 import io, random
 from streamlit_tags import st_tags
-from PIL import Image
 from Courses import ds_course, web_course, android_course, ios_course, uiux_course, resume_videos, interview_videos
 import yt_dlp
 import plotly.express as px
 # SQLite connection
 import sqlite3
+
 connection = sqlite3.connect("resume.db", check_same_thread=False)
 cursor = connection.cursor()
+
 
 def load_academic_dataset():
     if os.path.exists("resume_dataset.csv"):
@@ -35,6 +39,7 @@ def load_academic_dataset():
         return df
     else:
         return pd.DataFrame()
+
 
 def fetch_yt_video(link):
     ydl_opts = {
@@ -59,23 +64,29 @@ def get_table_download_link(df, filename, text):
     href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{text}</a>'
     return href
 
-
 def pdf_reader(file):
     resource_manager = PDFResourceManager()
     fake_file_handle = io.StringIO()
-    converter = TextConverter(resource_manager, fake_file_handle, laparams=LAParams())
-    page_interpreter = PDFPageInterpreter(resource_manager, converter)
-    with open(file, 'rb') as fh:
-        for page in PDFPage.get_pages(fh,
-                                      caching=True,
-                                      check_extractable=True):
-            page_interpreter.process_page(page)
-            print(page)
-        text = fake_file_handle.getvalue()
 
-    # close open handles
+    laparams = LAParams(
+        line_margin=0.2,
+        word_margin=0.1,
+        char_margin=2.0,
+        all_texts=True
+    )
+
+    converter = TextConverter(resource_manager, fake_file_handle, laparams=laparams)
+    page_interpreter = PDFPageInterpreter(resource_manager, converter)
+
+    with open(file, 'rb') as fh:
+        for page in PDFPage.get_pages(fh, caching=True, check_extractable=True):
+            page_interpreter.process_page(page)
+
+    text = fake_file_handle.getvalue()
+
     converter.close()
     fake_file_handle.close()
+
     return text
 
 
@@ -108,14 +119,12 @@ def course_recommender(course_list):
         if c == no_of_reco:
             break
 
-    connection = None
-    cursor = None
+
 
 
 def insert_data(name, email, res_score, timestamp,
                 no_of_pages, reco_field, cand_level,
                 skills, recommended_skills, courses):
-
     insert_sql = """
     INSERT INTO user_data
     (Name, Email_ID, resume_score, Timestamp, Page_no,
@@ -134,13 +143,12 @@ def insert_data(name, email, res_score, timestamp,
     connection.commit()
 
 
-
-
-
 st.set_page_config(
     page_title="Smart Resume Analyzer",
     page_icon='./Logo/SRA_Logo.ico',
 )
+
+
 def save_to_csv(name, email, skills, pages, level, field):
     file_exists = os.path.exists("resume_dataset.csv")
 
@@ -158,14 +166,96 @@ def save_to_csv(name, email, skills, pages, level, field):
             name, email, skills, pages, level, field
         ])
 
-def run():
+# =========================
+# Helper Functions (TOP AREA)
+# =========================
 
+def get_resume_advice(resume_text, resume_score):
+    advice = []
+
+    text = resume_text.lower()
+
+    if not re.search(r'\b(objective|summary|profile)\b', text):
+        advice.append("🟡 Add a strong career summary (2–3 lines).")
+
+    if not re.search(r'\b(education|university|college|b\.?tech|bsc|msc|degree)\b', text):
+        advice.append("🟡 Include education details.")
+
+    if not re.search(r'\b(experience|intern|worked|employment|job)\b', text):
+        advice.append("🟡 Add work experience.")
+
+    if not re.search(r'\b(python|java|sql|react|django|flask|ml|ai)\b', text):
+        advice.append("🟡 Add technical skills.")
+
+    if not re.search(r'\b(project|built|developed|created)\b', text):
+        advice.append("🟡 Add projects.")
+
+    if resume_score < 60:
+        advice.append("🔴 Improve resume structure and ATS keywords.")
+    elif resume_score < 80:
+        advice.append("🟠 Good resume, but add achievements.")
+    else:
+        advice.append("🟢 Strong resume!")
+
+    return advice
+
+def calculate_ats_score(resume_text, job_desc):
+    if not job_desc:
+        return 0
+
+    resume_words = set(resume_text.lower().split())
+    job_words = set(job_desc.lower().split())
+
+    common_words = resume_words.intersection(job_words)
+
+    if len(job_words) == 0:
+        return 0
+
+    score = (len(common_words) / len(job_words)) * 100
+    return round(score, 2)
+
+def skill_gap_analyzer(resume_text, job_desc):
+    resume_skills = set(re.findall(r'\b(python|java|sql|react|django|flask|ml|ai|aws|docker)\b', resume_text.lower()))
+    job_skills = set(re.findall(r'\b(python|java|sql|react|django|flask|ml|ai|aws|docker)\b', job_desc.lower()))
+
+    return list(job_skills - resume_skills)
+
+def resume_rewrite_suggestions(resume_text):
+    suggestions = []
+
+    if len(resume_text.split()) < 150:
+        suggestions.append("Expand your resume with more project and experience details.")
+
+    if "project" not in resume_text.lower():
+        suggestions.append("Add 2–3 real projects with technologies used.")
+
+    if "achievement" not in resume_text.lower():
+        suggestions.append("Add measurable achievements (impact, numbers, results).")
+
+    suggestions.append("Use action verbs: Developed, Built, Designed, Optimized.")
+
+    return suggestions
+
+def detect_industry(resume_text):
+    text = resume_text.lower()
+
+    if any(word in text for word in ["tensorflow", "pytorch", "machine learning", "data"]):
+        return "Data Science"
+    elif any(word in text for word in ["react", "html", "css", "javascript"]):
+        return "Web Development"
+    elif any(word in text for word in ["android", "kotlin", "flutter"]):
+        return "Android Development"
+    else:
+        return "General IT"
+
+def run():
     st.title("Smart Resume Analyser")
+    st.subheader("📌 Job Description Input (for ATS Analysis)")
+    job_desc = st.text_area("Paste Job Description here")
     reco_field = ""
     cand_level = ""
     rec_course = []
     recommended_skills = []
-
 
     st.sidebar.markdown("# Choose User")
     activities = ["Normal User", "Admin"]
@@ -182,9 +272,6 @@ def run():
         st.image(img)
     else:
         st.warning("Logo image not found")
-
-
-
 
     # Create table
     cursor.execute("""
@@ -204,11 +291,15 @@ def run():
     """)
     connection.commit()
     if choice == 'Normal User':
-        # st.markdown('''<h4 style='text-align: left; color: #d73b5c;'>* Upload your resume, and get smart recommendation based on it."</h4>''',
-        #             unsafe_allow_html=True)
+            # st.markdown('''<h4 style='text-align: left; color: #d73b5c;'>* Upload your resume, and get smart recommendation based on it."</h4>''',
+            #             unsafe_allow_html=True)
         pdf_file = st.file_uploader("Choose your Resume", type=["pdf"])
         if pdf_file is not None:
-
+            ts = time.time()
+            cur_date = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+            cur_time = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
+            timestamp = str(cur_date + '_' + cur_time)
+            st.success("Resume uploaded successfully")
             save_image_path = './Uploaded_Resumes/' + pdf_file.name
 
             with open(save_image_path, "wb") as f:
@@ -228,95 +319,76 @@ def run():
             phone = phone[0] if phone else "Not Found"
 
             # ✅ Extract name (simple method)
-            name = resume_text.split('\n')[0]
-
+            name_match = re.findall(r"[a-zA-Z ]{3,30}", resume_text)
+            name = name_match[0].title() if name_match else "Not Found"
 
             # ✅ Skills (basic extraction)
-            skills = list(set(re.findall(
-                r'\b(python|java|sql|react|django|flask|machine learning|ai|html|css|javascript)\b',
-                resume_text.lower()
-            )))
+
             # Page count (simple OR use function)
             no_of_pages = 1
 
             resume_data = {
-                "name": name,
-                "email": email,
-                "mobile_number": phone,
-                "no_of_pages": no_of_pages,
-                "skills": skills
+                    "name": name,
+                    "email": email,
+                    "mobile_number": phone,
+                    "no_of_pages": no_of_pages,
+
             }
 
-            resume_text = resume_text.lower()
-            resume_score = 0
-            resume_data["skills"] = re.findall(
-         r'\b(?:python|java|sql|react|django|flask|ml|ai)\b',
-                resume_text
-            )
+            resume_data["skills"] = list(set(re.findall(
+                r'\b(python|java|sql|react|django|flask|machine learning|ai|html|css|javascript)\b',
+                resume_text.lower()
+            )))
 
             sections = {
-                ('objective', 'career objective'): 10,
-                ('education', 'educational'): 15,
-                ('experience', 'work experience'): 20,
-                ('skills', 'technical skills'): 20,
-                ('projects', 'academic projects'): 15,
-                ('certification', 'certifications'): 10,
-                ('achievement', 'achievements'): 10
+                ('objective', 'career objective', 'profile summary', 'summary'): 10,
+                ('education', 'academic background', 'qualification'): 15,
+                ('experience', 'work experience', 'professional experience', 'employment'): 20,
+                ('skills', 'technical skills', 'core competencies'): 20,
+                ('projects', 'project experience', 'academic projects'): 15,
+                ('certification', 'certifications', 'courses'): 10,
+                ('achievement', 'achievements', 'awards'): 10
             }
 
-            for keys, mark in sections.items():
-                if any(k in resume_text for k in keys):
-                    resume_score += mark
-                    st.success(f"{keys[0].title()} section found (+{mark})")
-                else:
-                    st.warning(f"Consider adding {keys[0].title()} section")
+            st.header("**Resume Analysis**")
 
-                # Maximum score cap
-                if resume_score > 100:
-                    resume_score = 100
 
-                st.header("**Resume Analysis**")
-                st.success("Hello " + resume_data['name'])
+            st.subheader("**Your Basic info**")
+            st.text('Name: ' + resume_data['name'])
+            st.text('Email: ' + resume_data['email'])
+            st.text('Contact: ' + resume_data['mobile_number'])
+            st.text('Resume pages: ' + str(resume_data['no_of_pages']))
+            cand_level = ''
+            if resume_data['no_of_pages'] == 1:
+                cand_level = "Fresher"
+                st.warning("You are looking Fresher.")
+            elif resume_data['no_of_pages'] == 2:
+                cand_level = "Intermediate"
+                st.success("You are at intermediate level!")
+            else:
+                cand_level = "Experienced"
+                st.info("You are at experienced level!")
 
-                st.subheader("**Your Basic info**")
-                st.text('Name: ' + resume_data['name'])
-                st.text('Email: ' + resume_data['email'])
-                st.text('Contact: ' + resume_data['mobile_number'])
-                st.text('Resume pages: ' + str(resume_data['no_of_pages']))
-                cand_level = ''
-                if resume_data['no_of_pages'] == 1:
-                    cand_level = "Fresher"
-                    st.warning("You are looking Fresher.")
-                elif resume_data['no_of_pages'] == 2:
-                    cand_level = "Intermediate"
-                    st.success("You are at intermediate level!")
-                else:
-                    cand_level = "Experienced"
-                    st.info("You are at experienced level!")
+            st.subheader("**Skills Recommendation💡**")
 
-                st.subheader("**Skills Recommendation💡**")
-                if "skills_shown" not in st.session_state:
-                    st.session_state.skills_shown = True
-
+            if resume_data['skills']:
                     st.write("### 🛠 Detected Skills:")
-
 
                     for skill in resume_data['skills']:
                         st.success(skill)
-                    st_tags(
-                        label='### Skills that you have',
-                        text='Detected from resume',
-                        value=resume_data['skills'],
-                        key="skills_unique"
-                    )
-                else:
-                    st.warning("No skills detected in your resume")
-                ##  recommendation
-                ds_keyword = ['tensorflow', 'keras', 'pytorch', 'machine learning', 'deep Learning', 'flask',
-                              'streamlit']
-                web_keyword = ['react', 'django', 'node jS', 'react js', 'php', 'laravel', 'magento', 'wordpress',
-                               'javascript', 'angular js', 'c#', 'flask']
-                android_keyword = ['android', 'android development', 'flutter', 'kotlin', 'xml', 'kivy']
+
+            else:
+                st.warning("No skills detected in your resume")
+                    ##  recommendation
+                ds_keyword = [
+                        'tensorflow', 'keras', 'pytorch',
+                        'machine learning', 'deep learning', 'flask'
+                ]
+
+                web_keyword = [
+                    'react', 'django', 'javascript'
+                ]
+                android_keyword = ['android', 'kotlin']
                 ios_keyword = ['ios', 'ios development', 'swift', 'cocoa', 'cocoa touch', 'xcode']
                 uiux_keyword = ['ux', 'adobe xd', 'figma', 'zeplin', 'balsamiq', 'ui', 'prototyping', 'wireframes',
                                 'storyframes', 'adobe photoshop', 'photoshop', 'editing', 'adobe illustrator',
@@ -344,7 +416,6 @@ def run():
                             'Pytorch', 'Probability', 'Scikit-learn', 'Tensorflow', 'Flask',
                             'Streamlit'
                         ]
-
 
                         st.markdown(
                             '''<h4 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job💼</h4>''',
@@ -419,16 +490,9 @@ def run():
                         rec_course = course_recommender(uiux_course)
                         break
 
-                #
-                ## Insert into table
-                ts = time.time()
-                cur_date = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
-                cur_time = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
-                timestamp = str(cur_date + '_' + cur_time)
+
 
                 ### Resume writing recommendation
-
-
 
                 from pdfminer.pdfpage import PDFPage
 
@@ -437,137 +501,195 @@ def run():
                         return len(list(PDFPage.get_pages(f)))
 
                 resume_data["no_of_pages"] = get_pdf_page_count(save_image_path)
-                resume_text = resume_text.lower()
-                resume_score = 0
+
+
 
                 sections = {
-                    ('objective', 'career objective'): 10,
-                    ('education', 'educational'): 15,
-                    ('experience', 'work experience'): 20,
-                    ('skills', 'technical skills'): 20,
-                    ('projects', 'academic projects'): 15,
-                    ('certification', 'certifications'): 10,
-                    ('achievement', 'achievements'): 10
+                    ('objective', 'career objective', 'profile summary', 'summary'): 10,
+                    ('education', 'academic background', 'qualification'): 15,
+                    ('experience', 'work experience', 'professional experience', 'employment'): 20,
+                    ('skills', 'technical skills', 'core competencies'): 20,
+                    ('projects', 'project experience', 'academic projects'): 15,
+                    ('certification', 'certifications', 'courses'): 10,
+                    ('achievement', 'achievements', 'awards'): 10
                 }
+            st.subheader("**Resume Tips & Ideas💡**")
 
-                st.subheader("**Resume Tips & Ideas💡**")
+            resume_score = 0
 
-                for keys, mark in sections.items():
-                    if any(k in resume_text for k in keys):
-                        resume_score += mark
-                        st.success(f"{keys[0].title()} section found (+{mark})")
-                    else:
-                        st.warning(f"Consider adding {keys[0].title()} section")
+            for keys, mark in sections.items():
+                found = False
 
-                if resume_score > 100:
-                    resume_score = 100
+                for keyword in keys:
+                    pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+                    if re.search(pattern, resume_text):
+                        found = True
+                        break
+                if found:
+                    resume_score += mark
+                    st.success(f"{keys[0].title()} section found (+{mark})")
+                else:
+                    st.warning(f"Consider adding {keys[0].title()} section")
 
-                st.subheader("**Resume Score📝**")
-                my_bar = st.progress(0)
+            resume_score = min(resume_score, 100)
 
-                score = 0
-                for i in range(resume_score):
-                    score += 1
-                    time.sleep(0.01)
-                    my_bar.progress(i + 1)
-                st.success('** Your Resume Writing Score: ' + str(resume_score) + '**')
-                st.warning(
+
+            # PROFESSIONAL ADVICE BLOCK
+
+            st.subheader("📌 Professional Resume Improvement Advice")
+
+            advice_list = get_resume_advice(resume_text, resume_score)
+
+            for tip in advice_list:
+                st.write(tip)
+
+            st.subheader("**Resume Score📝**")
+            my_bar = st.progress(0)
+
+            st.subheader("📊 ATS Match Score")
+
+            ats_score = calculate_ats_score(resume_text, job_desc)
+
+            st.metric("ATS Score", f"{ats_score} %")
+
+            st.subheader("🧠 Skill Gap Analysis")
+
+            missing_skills = skill_gap_analyzer(resume_text, job_desc)
+
+            if missing_skills:
+                for s in missing_skills:
+                    st.write("🔴", s)
+            else:
+                st.success("No major skill gaps found!")
+
+            st.subheader("🧭 Industry Detection")
+
+            industry = detect_industry(resume_text)
+            st.info(f"Detected Field: {industry}")
+
+            st.subheader("✍️ Resume Rewrite Suggestions")
+
+            for tip in resume_rewrite_suggestions(resume_text):
+                st.write("✔", tip)
+
+            st.subheader("🏆 Hireability Score")
+
+            final_score = (
+                    resume_score * 0.4 +
+                    ats_score * 0.4 +
+                    max(0, 20 - len(missing_skills) * 2)
+            )
+
+            st.success(f"Your Hireability Score: {round(final_score, 2)} / 100")
+
+
+
+            score = 0
+            for i in range(resume_score):
+                time.sleep(0.01)
+                my_bar.progress(i + 1)
+            st.success('** Your Resume Writing Score: ' + str(resume_score) + '**')
+            st.warning(
                     "** Note: This score is calculated based on the content that you have added in your Resume. **"
-                )
-                st.balloons()
+            )
+            st.balloons()
 
-                insert_data(resume_data['name'], resume_data.get('email', 'noemail@example.com'), str(resume_score), timestamp,
+            insert_data(resume_data['name'], resume_data.get('email', 'noemail@example.com'), str(resume_score),
+                            timestamp,
                             str(resume_data['no_of_pages']), reco_field, cand_level, str(resume_data['skills']),
                             str(recommended_skills), str(rec_course))
 
-
-
-
-
-
-                save_to_csv(
+            save_to_csv(
                     resume_data['name'],
                     resume_data['email'],
                     resume_data['skills'],
                     resume_data['no_of_pages'],
                     cand_level,
                     reco_field
-                )
-                ## Resume writing video
-                st.header("**Bonus Video for Resume Writing Tips💡**")
-                resume_vid = random.choice(resume_videos)
-                res_vid_title = "Resume Writing Tips Video"
-                st.subheader("✅ " + res_vid_title)
-                st.video(resume_vid)
-                ## Interview Preparation Video
-                st.header("**Bonus Video for Interview👨‍💼 Tips💡**")
-                interview_vid = random.choice(interview_videos)
-                int_vid_title = "Interview Preparation Video"
-                st.subheader("✅ " + int_vid_title)
-                st.video(interview_vid)
+            )
+            ## Resume writing video
+            st.header("**Bonus Video for Resume Writing Tips💡**")
+            resume_vid = random.choice(resume_videos)
+            res_vid_title = "Resume Writing Tips Video"
+            st.subheader("✅ " + res_vid_title)
+            st.video(resume_vid)
+            ## Interview Preparation Video
+            st.header("**Bonus Video for Interview👨‍💼 Tips💡**")
+            interview_vid = random.choice(interview_videos)
+            int_vid_title = "Interview Preparation Video"
+            st.subheader("✅ " + int_vid_title)
+            st.video(interview_vid)
 
-                connection.commit()
-            else:
-                st.error('Something went wrong..')
-    else:
-        ## Admin Side
-        st.success('Welcome to Admin Side')
-        # st.sidebar.subheader('**ID / Password Required!**')
+            connection.commit()
+
+
+    ## Admin Side
+    elif choice == "Admin":
+        st.success("Welcome to Admin Dashboard")
 
         ad_user = st.text_input("Username")
-        ad_password = st.text_input("Password", type='password')
-        if st.button('Login'):
-            if ad_user == 'admin' and ad_password == 'Tomas@5780':
+        ad_password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+
+            if ad_user == "admin" and ad_password == "Tomas@5780":
                 st.success("Admin Login Successful")
-                # ===== Academic Dataset Section =====
-                st.subheader("📁 Academic Resume Dataset (CSV)")
-                dataset_df = load_academic_dataset()
 
-                if not dataset_df.empty:
-                    st.dataframe(dataset_df)
-                else:
-                    st.warning("Dataset file not found!")
-                # ===================================
+                df = load_academic_dataset()
 
-                # Display Data
-                cursor.execute('''SELECT*FROM user_data''')
-                data = cursor.fetchall()
-                st.header("**User's👨‍💻 Data**")
-                df = pd.DataFrame(data, columns=['ID', 'Name', 'Email', 'Resume Score', 'Timestamp', 'Total Page',
-                                                 'Predicted Field', 'User Level', 'Actual Skills', 'Recommended Skills',
-                                                 'Recommended Course'])
-                st.dataframe(df)
-                st.markdown(get_table_download_link(df, 'User_Data.csv', 'Download Report'), unsafe_allow_html=True)
-                st.subheader("📈 Predicted Field Distribution")
-                fig = px.pie(df, names="Predicted Field")
-                st.plotly_chart(fig)
+                # 📊 1. USER ANALYTICS
+                st.subheader("📊 Resume Analysis Stats")
 
-                st.subheader("📈 Experience Level Distribution")
-                fig2 = px.pie(df, names="User Level")
-                st.plotly_chart(fig2)
-                ## Admin Side Data
-                query = 'select * from user_data;'
-                plot_data = pd.read_sql(query, connection)
+                if not df.empty:
+                    st.write("Total Users:", len(df))
 
-                ## Pie chart for predicted field recommendations
-                labels = plot_data.Predicted_Field.unique()
-                print(labels)
-                values = plot_data.Predicted_Field.value_counts()
-                print(values)
-                st.subheader("📈 **Pie-Chart for Predicted Field Recommendations**")
-                fig = px.pie(df, values=values, names=labels, title='Predicted Field according to the Skills')
-                st.plotly_chart(fig)
+                    if "job_field" in df.columns:
+                        st.bar_chart(df["job_field"].value_counts())
 
-                ### Pie chart for User's👨‍💻 Experienced Level
-                labels = plot_data.User_level.unique()
-                values = plot_data.User_level.value_counts()
-                st.subheader("📈 ** Pie-Chart for User's👨‍💻 Experienced Level**")
-                fig = px.pie(df, values=values, names=labels, title="Pie-Chart📈 for User's👨‍💻 Experienced Level")
-                st.plotly_chart(fig)
+                # 📈 2. EXPERIENCE LEVEL
+                st.subheader("📈 Experience Distribution")
 
+                if "experience_level" in df.columns:
+                    st.bar_chart(df["experience_level"].value_counts())
+
+                # 📂 3. SKILL INSIGHT
+                st.subheader("🧠 Skills Overview")
+
+                if "skills" in df.columns:
+                    all_skills = df["skills"].dropna().str.cat(sep="|").split("|")
+                    skill_series = pd.Series(all_skills).value_counts().head(10)
+                    st.bar_chart(skill_series)
+
+                # 📥 4. DOWNLOAD
+                st.subheader("📥 Download Full Report")
+                st.markdown(
+                    get_table_download_link(df, "resume_report.csv", "Download CSV Report"),
+                    unsafe_allow_html=True
+                )
+
+                # 🔍 5. SEARCH
+                st.subheader("🔍 Search Candidate")
+                search = st.text_input("Enter Name or Email")
+
+                if search:
+                    result = df[df.apply(lambda row: search.lower() in str(row).lower(), axis=1)]
+                    st.dataframe(result)
+
+                # 🏆 6. TOP CANDIDATES
+                st.subheader("🏆 Top Candidates")
+
+                if "resume_score" in df.columns:
+                    df["resume_score"] = pd.to_numeric(df["resume_score"], errors="coerce")
+                    st.dataframe(df.sort_values("resume_score", ascending=False).head(10))
 
             else:
-                st.error("Wrong ID & Password Provided")
+                st.error("Wrong ID & Password")
+
+
 
 
 run()
+
+
+
+
