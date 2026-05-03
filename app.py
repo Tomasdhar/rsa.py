@@ -63,6 +63,13 @@ def get_table_download_link(df, filename, text):
     # href = f'<a href="data:file/csv;base64,{b64}">Download Report</a>'
     href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{text}</a>'
     return href
+def section_found(text, keywords):
+    text = text.lower()
+    return any(k.lower() in text for k in keywords)
+
+def clean_text(text):
+    return re.findall(r'\w+', text.lower())
+
 
 def pdf_reader(file):
     resource_manager = PDFResourceManager()
@@ -203,6 +210,16 @@ def calculate_ats_score(resume_text, job_desc):
     if not job_desc:
         return 0
 
+    resume_words = set(clean_text(resume_text))
+    job_words = set(clean_text(job_desc))
+
+    common = resume_words.intersection(job_words)
+
+    if len(job_words) == 0:
+        return 0
+
+    return round((len(common) / len(job_words)) * 100, 2)
+
     resume_words = set(resume_text.lower().split())
     job_words = set(job_desc.lower().split())
 
@@ -262,17 +279,14 @@ def run():
     choice = st.sidebar.selectbox("Choose among the given options:", activities)
     # link = '[©Developed by Spidy20](http://github.com/spidy20)'
     # st.sidebar.markdown(link, unsafe_allow_html=True)
-    import os
     from PIL import Image
-    logo_path = os.path.join("Logo", "SRA_Logo.jpg")
+    import os
 
-    if os.path.exists(logo_path):
-        img = Image.open(logo_path)
-        img = img.resize((250, 250))
-        st.image(img)
+    if os.path.exists("Logo/SRA_Logo.jpg"):
+        img = Image.open("Logo/SRA_Logo.jpg")
+        st.image(img, width=250)
     else:
         st.warning("Logo image not found")
-
     # Create table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_data (
@@ -300,7 +314,9 @@ def run():
             cur_time = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
             timestamp = str(cur_date + '_' + cur_time)
             st.success("Resume uploaded successfully")
-            save_image_path = './Uploaded_Resumes/' + pdf_file.name
+            os.makedirs("Uploaded_Resumes", exist_ok=True)
+
+            save_image_path = os.path.join("Uploaded_Resumes", pdf_file.name)
 
             with open(save_image_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
@@ -341,11 +357,11 @@ def run():
             )))
 
             sections = {
-                ('objective', 'career objective', 'profile summary', 'summary'): 10,
-                ('education', 'academic background', 'qualification'): 15,
-                ('experience', 'work experience', 'professional experience', 'employment'): 20,
-                ('skills', 'technical skills', 'core competencies'): 20,
-                ('projects', 'project experience', 'academic projects'): 15,
+                ('objective', 'career objective', 'summary', 'profile'): 10,
+                ('education', 'academic', 'university', 'college', 'degree', 'b.e', 'btech'): 15,
+                ('experience', 'work experience', 'employment', 'internship'): 20,
+                ('skills', 'technical skills', 'core skills'): 20,
+                ('projects', 'project', 'developed', 'built'): 15,
                 ('certification', 'certifications', 'courses'): 10,
                 ('achievement', 'achievements', 'awards'): 10
             }
@@ -502,14 +518,12 @@ def run():
 
                 resume_data["no_of_pages"] = get_pdf_page_count(save_image_path)
 
-
-
                 sections = {
-                    ('objective', 'career objective', 'profile summary', 'summary'): 10,
-                    ('education', 'academic background', 'qualification'): 15,
-                    ('experience', 'work experience', 'professional experience', 'employment'): 20,
-                    ('skills', 'technical skills', 'core competencies'): 20,
-                    ('projects', 'project experience', 'academic projects'): 15,
+                    ('objective', 'career objective', 'summary', 'profile'): 10,
+                    ('education', 'academic', 'university', 'college', 'degree', 'b.e', 'btech'): 15,
+                    ('experience', 'work experience', 'employment', 'internship'): 20,
+                    ('skills', 'technical skills', 'core skills'): 20,
+                    ('projects', 'project', 'developed', 'built'): 15,
                     ('certification', 'certifications', 'courses'): 10,
                     ('achievement', 'achievements', 'awards'): 10
                 }
@@ -518,14 +532,7 @@ def run():
             resume_score = 0
 
             for keys, mark in sections.items():
-                found = False
-
-                for keyword in keys:
-                    pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
-                    if re.search(pattern, resume_text):
-                        found = True
-                        break
-                if found:
+                if section_found(resume_text, keys):
                     resume_score += mark
                     st.success(f"{keys[0].title()} section found (+{mark})")
                 else:
