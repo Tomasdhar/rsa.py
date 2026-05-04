@@ -291,13 +291,14 @@ def run():
     from PIL import Image
     import os
 
-    logo_path = os.path.join(os.getcwd(), "Logo", "SRA_Logo.jpg")
+    BASE_DIR = os.path.dirname(__file__)
+    logo_path = os.path.join(BASE_DIR, "Logo", "SRA_Logo.jpg")
 
-    if os.path.exists(logo_path):
+    try:
         img = Image.open(logo_path)
         st.image(img, width=250)
-    else:
-        st.warning(f"Logo image not found at {logo_path}")
+    except Exception as e:
+        st.error(f"Logo not found. Path: {logo_path}")
     # Create table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_data (
