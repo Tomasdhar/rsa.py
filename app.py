@@ -25,6 +25,14 @@ import plotly.express as px
 # SQLite connection
 import sqlite3
 
+st.set_page_config(
+    page_title="ResumeIQ",
+    layout="wide"
+)
+
+st.title("ResumeIQ: Smart Resume Analyser")
+st.write("Analyze smarter. Get hired faster 🔥")
+
 connection = sqlite3.connect("resume.db", check_same_thread=False)
 cursor = connection.cursor()
 
@@ -151,8 +159,9 @@ def insert_data(name, email, res_score, timestamp,
 
 
 st.set_page_config(
-    page_title="Smart Resume Analyzer",
+    page_title="ResumeIQ",
     page_icon='./Logo/SRA_Logo.ico',
+    layout="wide"
 )
 
 
@@ -266,7 +275,7 @@ def detect_industry(resume_text):
         return "General IT"
 
 def run():
-    st.title("Smart Resume Analyser")
+
     st.subheader("📌 Job Description Input (for ATS Analysis)")
     job_desc = st.text_area("Paste Job Description here")
     reco_field = ""
