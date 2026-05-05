@@ -295,9 +295,7 @@ def run():
     rec_course = []
     recommended_skills = []
 
-    st.sidebar.markdown("# Choose User")
-    activities = ["Normal User", "Admin"]
-    choice = st.sidebar.selectbox("Choose among the given options:", activities)
+    choice = st.selectbox("Select Mode", ["Normal User", "Admin"])
     # link = '[©Developed by Spidy20](http://github.com/spidy20)'
     # st.sidebar.markdown(link, unsafe_allow_html=True)
     from PIL import Image
