@@ -301,14 +301,15 @@ def run():
     from PIL import Image
     import os
 
-    BASE_DIR = os.path.dirname(__file__)
-    logo_path = os.path.join(BASE_DIR, "Logo", "SRA_Logo.jpg")
+    st.write("Files inside Logo folder:", os.listdir("Logo"))
+
+    logo_path = "Logo/SRA_Logo.jpg"
 
     try:
         img = Image.open(logo_path)
         st.image(img, width=250)
     except Exception as e:
-        st.error(f"Logo not found. Path: {logo_path}")
+        st.error(f"Logo not found: {e}")
     # Create table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_data (
