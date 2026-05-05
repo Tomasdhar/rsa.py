@@ -28,7 +28,8 @@ import sqlite3
 st.set_page_config(
     page_title="ResumeIQ",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
+
 )
 
 hide_menu = """
