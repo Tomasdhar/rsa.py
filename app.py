@@ -27,8 +27,19 @@ import sqlite3
 
 st.set_page_config(
     page_title="ResumeIQ",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+hide_menu = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+</style>
+"""
+
+st.markdown(hide_menu, unsafe_allow_html=True)
 
 st.title("ResumeIQ: Smart Resume Analyser")
 st.write("Analyze smarter. Get hired faster 🔥")
