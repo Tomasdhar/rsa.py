@@ -1,9 +1,10 @@
 streamlit
-scikit-learn
 pandas
 numpy
-matplotlib
+scikit-learn
 nltk
-spacy
-PyPDF2
-python-docx
+pdfminer.six
+streamlit-tags
+plotly
+yt-dlp
+Pillow
