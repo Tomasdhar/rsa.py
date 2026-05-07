@@ -1,9 +1,9 @@
 streamlit
+scikit-learn
 pandas
 numpy
-pdfminer.six
-streamlit-tags
-plotly
+matplotlib
 nltk
-yt-dlp
-Pillow
+spacy
+PyPDF2
+python-docx
