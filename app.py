@@ -164,7 +164,7 @@ def insert_data(name, email, res_score, timestamp,
 
 st.set_page_config(
     page_title="ResumeIQ",
-    page_icon='./logo/SRA_Logo.ico',
+    page_icon='./logo/SRA_Logo .ico',
     layout="wide"
 )
 
@@ -317,7 +317,7 @@ def run():
     from PIL import Image
     import os
 
-    logo_path = os.path.join("logo", "SRA_Logo.jpg")
+    logo_path = os.path.join(os.path.dirname(__file__), "logo", "SRA_Logo .jpg")
 
     if os.path.exists(logo_path):
         img = Image.open(logo_path)
